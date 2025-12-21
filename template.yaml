@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Guardian Content Stream - Fetches Guardian articles and publishes to Kinesis
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Deployment environment
+
+  GuardianApiKeySecretName:
+    Type: String
+    Default: guardian-api-key
+    Description: Name of Secrets Manager secret containing Guardian API key
+
+  KinesisStreamName:
+    Type: String
+    Default: guardian-articles
+    Description: Name of the Kinesis stream to publish articles to
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: python3.13
+    MemorySize: 256
+    Architectures:
+      - x86_64
+
+Resources:
+  GuardianStreamFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub guardian-stream-${Environment}
+      Description: Fetches Guardian articles and publishes to Kinesis
+      Handler: guardian_stream.handler.handler
+      Runtime: python3.13
+      MemorySize: 256
+      Timeout: 30
+      CodeUri: src/
+
+      Environment:
+        Variables:
+          GUARDIAN_API_KEY_SECRET_NAME: !Ref GuardianApiKeySecretName
+          KINESIS_STREAM_NAME: !Ref KinesisStreamName
+
+      # Least-privilege IAM policies
+      Policies:
+        # Read Guardian API key from Secrets Manager
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GuardianApiKeySecretName}*
+
+        # Write to Kinesis stream
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - kinesis:PutRecord
+                - kinesis:PutRecords
+              Resource: !Sub arn:aws:kinesis:${AWS::Region}:${AWS::AccountId}:stream/${KinesisStreamName}
+
+      Tags:
+        Project: guardian-stream
+        Environment: !Ref Environment
+
+Outputs:
+  GuardianStreamFunctionArn:
+    Description: ARN of the Guardian Stream Lambda function
+    Value: !GetAtt GuardianStreamFunction.Arn
+
+  GuardianStreamFunctionName:
+    Description: Name of the Guardian Stream Lambda function
+    Value: !Ref GuardianStreamFunction
