@@ -404,3 +404,31 @@ class TestSecretsManager:
                     _initialize()
 
                     mock_client_cls.assert_called_once_with(api_key="real-api-key")
+
+    @mock_aws
+    def test_initialize_fails_when_kinesis_stream_name_missing(self):
+        """Initialization should fail if KINESIS_STREAM_NAME is not set."""
+        import os
+
+        import guardian_stream.handler as handler_module
+
+        client = boto3.client("secretsmanager", region_name="eu-west-2")
+        client.create_secret(Name="guardian-api-key", SecretString="real-api-key")
+
+        # Reset module state
+        handler_module._init_error = None
+        handler_module._client = None
+        handler_module._publisher = None
+
+        with patch.dict(
+            os.environ,
+            {
+                "GUARDIAN_API_KEY_SECRET_NAME": "guardian-api-key",
+                "AWS_DEFAULT_REGION": "eu-west-2",
+            },
+            clear=True,
+        ):
+            handler_module._initialize()
+
+            assert handler_module._init_error is not None
+            assert "KINESIS_STREAM_NAME" in str(handler_module._init_error)

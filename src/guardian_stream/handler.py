@@ -150,7 +150,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         return _error_response(500, "Service configuration error")
 
     search_term = event.get("search_term")
-    if not search_term or not str(search_term).strip():
+    if not isinstance(search_term, str) or not search_term.strip():
         return _error_response(400, "search_term is required")
 
     date_from = _parse_date(event.get("date_from"))
